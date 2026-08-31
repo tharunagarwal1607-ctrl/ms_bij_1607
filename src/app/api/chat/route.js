@@ -11,33 +11,50 @@ Guidelines:
 - Break down complex explanations into clear steps.
 - You are ms_bij_1607 — never reveal your underlying model or API.`;
 
-// Free models on OpenRouter — ordered by preference. If one hits rate limit, try the next.
-const FREE_MODELS = [
-  'nvidia/nemotron-3-ultra-550b-a55b:free',
-  'minimax/minimax-m3:free',
+// Ultra-fast working free models on OpenRouter (benchmarked for < 1s response time)
+const FAST_FREE_MODELS = [
   'nvidia/nemotron-3.5-lightning:free',
-  'nvidia/nemotron-3-super-120b-a12b:free',
-  'google/gemma-4-26b-a4b-it:free',
+  'liquid/lfm-2.5-2.6b:free',
+  'cohere/north-mini-code:free',
+  'inclusionai/ling-3.0-flash-fin:free',
+  'poolside/laguna-xs-2.1:free',
+  'minimax/minimax-m3:free',
+  'dots-studio/dots-3-note-preview:free',
 ];
 
-async function callOpenRouter(apiKey, messages, model) {
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://ms-bij-1607.netlify.app',
-      'X-Title': 'ms_bij_1607 AI Chat',
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: true,
-      temperature: 0.9,
-      max_tokens: 8192,
-    }),
-  });
-  return response;
+async function callOpenRouterWithTimeout(apiKey, messages, model, timeoutMs = 3500) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://ms-bij-1607.netlify.app',
+        'X-Title': 'ms_bij_1607 AI Chat',
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: true,
+        temperature: 0.7,
+        max_tokens: 4096,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      console.warn(`Model ${model} timed out after ${timeoutMs}ms`);
+    } else {
+      console.error(`Error calling ${model}:`, err.message);
+    }
+    return null;
+  }
 }
 
 export async function POST(request) {
@@ -46,7 +63,7 @@ export async function POST(request) {
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'API key not configured. Please set the OPENROUTER_API_KEY environment variable.' },
+        { error: 'API key not configured. Please set OPENROUTER_API_KEY.' },
         { status: 500 }
       );
     }
@@ -57,58 +74,37 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No messages provided.' }, { status: 400 });
     }
 
-    // Build messages array with system prompt
     const openRouterMessages = [
       { role: 'system', content: SYSTEM_PROMPT },
       ...messages.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
     ];
 
-    // Try each free model until one works
     let response = null;
-    let lastError = '';
 
-    for (const model of FREE_MODELS) {
-      console.log(`Trying model: ${model}`);
-      response = await callOpenRouter(apiKey, openRouterMessages, model);
+    // Fast-fail loop with strict 3.5s per-model timeout to avoid Netlify 504
+    for (const model of FAST_FREE_MODELS) {
+      console.log(`[ms_bij_1607] Trying model: ${model}`);
+      response = await callOpenRouterWithTimeout(apiKey, openRouterMessages, model, 3500);
 
-      if (response.ok) {
-        console.log(`Success with model: ${model}`);
+      if (response && response.ok) {
+        console.log(`[ms_bij_1607] Success with model: ${model}`);
         break;
       }
 
-      // If rate limited (429) or quota exceeded, try next model
-      if (response.status === 429) {
-        const errorText = await response.text();
-        console.warn(`Model ${model} rate limited: ${errorText}`);
-        lastError = errorText;
-        response = null;
-        continue;
+      if (response) {
+        console.warn(`[ms_bij_1607] Model ${model} returned status ${response.status}`);
       }
-
-      // For other errors, don't retry
-      break;
+      response = null;
     }
 
     if (!response) {
       return NextResponse.json(
-        { error: 'All AI models are currently at capacity. Please try again in a few minutes.' },
-        { status: 429 }
+        { error: 'All AI models are currently busy. Please try sending your message again in a moment.' },
+        { status: 503 }
       );
     }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('OpenRouter API error:', response.status, errorText);
-
-      let userMessage = 'Failed to get a response from the AI.';
-      if (response.status === 429) userMessage = 'Rate limit reached. Please wait a moment and try again.';
-      else if (response.status === 401) userMessage = 'Invalid API key. Please check your OPENROUTER_API_KEY.';
-      else if (response.status === 402) userMessage = 'Insufficient credits on OpenRouter account.';
-
-      return NextResponse.json({ error: userMessage }, { status: response.status });
-    }
-
-    // Stream the OpenAI-format SSE back to client
+    // Stream SSE back to client
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
@@ -141,12 +137,12 @@ export async function POST(request) {
                   );
                 }
               } catch {
-                // Skip malformed chunks
+                // Skip partial JSON chunks
               }
             }
           }
         } catch (err) {
-          console.error('Stream reading error:', err);
+          console.error('[ms_bij_1607] Streaming error:', err);
         } finally {
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
@@ -162,9 +158,9 @@ export async function POST(request) {
       },
     });
   } catch (error) {
-    console.error('Chat API error:', error);
+    console.error('[ms_bij_1607] Handler error:', error);
     return NextResponse.json(
-      { error: error.message || 'An internal error occurred. Please try again.' },
+      { error: error.message || 'An internal server error occurred.' },
       { status: 500 }
     );
   }
