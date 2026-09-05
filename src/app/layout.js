@@ -8,10 +8,14 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: 'ms_bij_1607 - AI Chat',
+  title: 'MABIX - AI Chat',
   description:
-    'Your intelligent AI assistant powered by advanced language models. Ask anything — code, analysis, creative writing, and more.',
-  keywords: 'AI, chatbot, assistant, ms_bij_1607',
+    'MABIX - AI FOR YOUR JOURNEY. Your intelligent AI assistant powered by MABIX 1.0 (core).',
+  keywords: 'AI, chatbot, assistant, MABIX, MABIX 1.0 (core)',
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
 };
 
 export const viewport = {
