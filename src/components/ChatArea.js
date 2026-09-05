@@ -20,7 +20,9 @@ export default function ChatArea({ messages, isLoading }) {
 
         {isLoading && (
           <div className="message bot-message">
-            <div className="bot-avatar">M</div>
+            <div className="bot-avatar-container" title="MABIX 1.0 (core)">
+              <img src="/logo.png" alt="MABIX Avatar" className="bot-avatar-img glowing-avatar" />
+            </div>
             <div className="message-content">
               <div className="typing-indicator">
                 <span></span>
