@@ -20,7 +20,6 @@ export default function MessageInput({ onSend, isLoading }) {
     if (!trimmed || isLoading) return;
     onSend(trimmed);
     setInput('');
-    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -36,13 +35,13 @@ export default function MessageInput({ onSend, isLoading }) {
   return (
     <div className="input-area">
       <div className="input-container">
-        <button className="attach-btn" title="Attach file">
+        <button className="attach-btn" title="Attach file or image prompt">
           📎
         </button>
         <textarea
           ref={textareaRef}
           className="message-input"
-          placeholder="Message ms_bij_1607..."
+          placeholder="Ask MABIX anything or ask for pictures..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -59,7 +58,7 @@ export default function MessageInput({ onSend, isLoading }) {
         </button>
       </div>
       <p className="input-disclaimer">
-        ms_bij_1607 can make mistakes. Consider checking important information.
+        MABIX 1.0 (core) &bull; MABIX can make mistakes. Consider verifying important information.
       </p>
     </div>
   );
