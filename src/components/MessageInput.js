@@ -41,7 +41,7 @@ export default function MessageInput({ onSend, isLoading }) {
         <textarea
           ref={textareaRef}
           className="message-input"
-          placeholder="Ask MABIX anything or ask for pictures..."
+          placeholder="Ask MABIX"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
