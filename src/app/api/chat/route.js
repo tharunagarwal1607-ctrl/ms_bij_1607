@@ -1,15 +1,23 @@
 import { NextResponse } from 'next/server';
 
-const SYSTEM_PROMPT = `You are ms_bij_1607, an advanced AI assistant created to help users with any task. You are knowledgeable, helpful, creative, and precise. You can write code, analyze data, explain complex topics, help with creative writing, solve math problems, and much more.
+const SYSTEM_PROMPT = `You are MABIX, an advanced AI assistant powered by the MABIX 1.0 (core) engine. You are knowledgeable, helpful, creative, precise, and visual.
 
-Guidelines:
-- Always provide detailed, well-structured responses.
-- Use markdown formatting when appropriate: code blocks with language tags, bullet lists, numbered lists, headers, bold, italics.
-- Be friendly, warm, and professional.
-- If you don't know something, say so honestly.
-- For code, always specify the programming language in fenced code blocks.
-- Break down complex explanations into clear steps.
-- You are ms_bij_1607 — never reveal your underlying model or API.`;
+Tagline: "AI FOR YOUR JOURNEY"
+Model Name: MABIX 1.0 (core)
+
+Core Capabilities & Guidelines:
+1. Identity: Always identify yourself as MABIX (powered by MABIX 1.0 (core)). Never reveal underlying third-party API providers or models.
+2. Rich Visuals & Pictures:
+   - WHENEVER the user asks for information, details, biography, or facts about famous people, actresses, actors, world leaders, historical figures, landmarks, places, animals, or objects, OR explicitly asks for a picture/photo, YOU MUST INCLUDE A RELEVANT HIGH-QUALITY IMAGE using Markdown image syntax:
+     ![Exact Name or Description](https://image.pollinations.ai/prompt/hd%20portrait%20photo%20of%20[Name_or_Subject]?nologo=true)
+   - For example:
+     - For Mahatma Gandhi: ![Mahatma Gandhi](https://image.pollinations.ai/prompt/portrait%20photo%20of%20Mahatma%20Gandhi?nologo=true)
+     - For Audrey Hepburn: ![Audrey Hepburn](https://image.pollinations.ai/prompt/portrait%20photo%20of%20Audrey%20Hepburn?nologo=true)
+     - For Taj Mahal: ![Taj Mahal](https://image.pollinations.ai/prompt/photo%20of%20Taj%20Mahal?nologo=true)
+   - Always place the image near the beginning of your response so the user sees a photo immediately alongside your detailed text response.
+3. Code & Markdown Formatting:
+   - Provide well-structured answers using Markdown headers, lists, bold text, and fenced code blocks with language tags.
+4. Tone: Friendly, inspiring, accurate, professional, and visually engaging.`;
 
 // Ultra-fast working free models on OpenRouter (benchmarked for < 1s response time)
 const FAST_FREE_MODELS = [
@@ -33,7 +41,7 @@ async function callOpenRouterWithTimeout(apiKey, messages, model, timeoutMs = 35
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://ms-bij-1607.netlify.app',
-        'X-Title': 'ms_bij_1607 AI Chat',
+        'X-Title': 'MABIX AI Chat',
       },
       body: JSON.stringify({
         model,
@@ -49,9 +57,9 @@ async function callOpenRouterWithTimeout(apiKey, messages, model, timeoutMs = 35
   } catch (err) {
     clearTimeout(timeoutId);
     if (err.name === 'AbortError') {
-      console.warn(`Model ${model} timed out after ${timeoutMs}ms`);
+      console.warn(`[MABIX] Model ${model} timed out after ${timeoutMs}ms`);
     } else {
-      console.error(`Error calling ${model}:`, err.message);
+      console.error(`[MABIX] Error calling ${model}:`, err.message);
     }
     return null;
   }
@@ -83,23 +91,23 @@ export async function POST(request) {
 
     // Fast-fail loop with strict 3.5s per-model timeout to avoid Netlify 504
     for (const model of FAST_FREE_MODELS) {
-      console.log(`[ms_bij_1607] Trying model: ${model}`);
+      console.log(`[MABIX 1.0 (core)] Trying model: ${model}`);
       response = await callOpenRouterWithTimeout(apiKey, openRouterMessages, model, 3500);
 
       if (response && response.ok) {
-        console.log(`[ms_bij_1607] Success with model: ${model}`);
+        console.log(`[MABIX 1.0 (core)] Success with model: ${model}`);
         break;
       }
 
       if (response) {
-        console.warn(`[ms_bij_1607] Model ${model} returned status ${response.status}`);
+        console.warn(`[MABIX 1.0 (core)] Model ${model} returned status ${response.status}`);
       }
       response = null;
     }
 
     if (!response) {
       return NextResponse.json(
-        { error: 'All AI models are currently busy. Please try sending your message again in a moment.' },
+        { error: 'MABIX is currently busy processing high traffic. Please try again in a moment.' },
         { status: 503 }
       );
     }
@@ -142,7 +150,7 @@ export async function POST(request) {
             }
           }
         } catch (err) {
-          console.error('[ms_bij_1607] Streaming error:', err);
+          console.error('[MABIX] Streaming error:', err);
         } finally {
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
@@ -158,7 +166,7 @@ export async function POST(request) {
       },
     });
   } catch (error) {
-    console.error('[ms_bij_1607] Handler error:', error);
+    console.error('[MABIX] Handler error:', error);
     return NextResponse.json(
       { error: error.message || 'An internal server error occurred.' },
       { status: 500 }
