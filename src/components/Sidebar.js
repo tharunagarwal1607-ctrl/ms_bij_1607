@@ -13,13 +13,20 @@ export default function Sidebar({
     <>
       <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
+          <div className="sidebar-brand">
+            <img src="/logo.png" alt="MABIX Logo" className="sidebar-logo-img" />
+            <div className="sidebar-brand-text">
+              <span className="sidebar-brand-name">MABIX</span>
+              <span className="sidebar-brand-tagline">AI FOR YOUR JOURNEY</span>
+            </div>
+          </div>
           <button className="new-chat-btn" onClick={onNewChat}>
             <span className="plus-icon">+</span> New Chat
           </button>
         </div>
 
         <div className="sidebar-chats">
-          <div className="chats-label">Recent Chats</div>
+          <div className="chats-label">Recent Conversations</div>
           {chats.map((chat) => (
             <div
               key={chat.id}
@@ -44,8 +51,11 @@ export default function Sidebar({
 
         <div className="sidebar-footer">
           <div className="user-profile">
-            <div className="user-avatar">M</div>
-            <span className="user-name">ms_bij_1607</span>
+            <img src="/logo.png" alt="MABIX" className="user-avatar-img" />
+            <div className="profile-info">
+              <span className="user-name">MABIX</span>
+              <span className="user-model-badge">MABIX 1.0 (core)</span>
+            </div>
           </div>
         </div>
       </aside>
