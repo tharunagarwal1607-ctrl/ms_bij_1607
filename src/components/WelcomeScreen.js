@@ -35,9 +35,7 @@ export default function WelcomeScreen({ onSuggestionClick }) {
       </div>
       <h2 className="welcome-title">Hello, I&apos;m MABIX</h2>
       <p className="welcome-subtitle">
-        AI FOR YOUR JOURNEY &bull; Powered by <strong>MABIX 1.0 (core)</strong>
-        <br />
-        Ask me anything &mdash; write code, analyze topics, or ask for photos and details of famous people!
+        AI FOR YOUR JOURNEY
       </p>
       <div className="suggestion-cards">
         {suggestions.map((item, idx) => (
