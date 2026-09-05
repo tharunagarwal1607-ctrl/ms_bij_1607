@@ -7,7 +7,7 @@ import WelcomeScreen from '@/components/WelcomeScreen';
 import ChatArea from '@/components/ChatArea';
 import MessageInput from '@/components/MessageInput';
 
-const STORAGE_KEY = 'ms_bij_1607_chats';
+const STORAGE_KEY = 'MABIX_chats';
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
