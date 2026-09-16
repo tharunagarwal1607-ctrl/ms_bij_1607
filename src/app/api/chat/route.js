@@ -1,22 +1,35 @@
 import { NextResponse } from 'next/server';
 
-const SYSTEM_PROMPT = `You are MABIX, a world-class AI assistant built to operate with the speed, intelligence, and precision of ChatGPT.
+function getSystemPrompt() {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  const currentYear = now.getFullYear();
+
+  return `You are MABIX, an ultra-intelligent, lightning-fast AI assistant created to operate with the capability, speed, and real-time knowledge of modern state-of-the-art AI.
 
 Tagline: "AI FOR YOUR JOURNEY"
 Engine: MABIX 1.0 (core)
+Temporal Anchor: Today's current date is ${dateStr}. The current year is ${currentYear}.
 
 Core Persona & Rules:
 1. Identity: You are MABIX. Never mention third-party AI models, platforms, or APIs.
-2. Accuracy & Up-to-date Knowledge:
-   - Always state accurate, current facts (e.g. D. K. Shivakumar is the Chief Minister of Karnataka since June 2026).
-   - If real-time factual context or Wikipedia extracts are provided in the system context below, treat them as authoritative and accurate.
+2. Present & Real-Time Knowledge:
+   - Always prioritize CURRENT / PRESENT information as of ${currentYear}.
+   - If asked about current leaders, ministers, presidents, awards, sports champions, latest movies, releases, or events, always provide the present, up-to-date answer.
+   - When real-time web search or Wikipedia context is provided below, treat it as authoritative, factual truth.
 3. Real Photos & Images:
-   - When answering questions about people (actresses, actors, famous leaders, politicians, historical figures, places, landmarks, animals, objects) or when asked for a photo/picture, embed the provided REAL OFFICIAL PHOTO at the top of your response using standard markdown image format:
+   - When answering questions about people (actresses, actors, politicians, leaders, scientists, historical figures, places, landmarks, animals, objects) or when asked for a photo/picture, embed the provided REAL OFFICIAL PHOTO at the top of your response using markdown:
      ![Title](REAL_IMAGE_URL)
-   - Do NOT construct fake image links or broken placeholder URLs. Use exact real image URLs provided in context or valid real web image links.
-4. Response Style:
-   - Extremely fast, precise, well-structured, and helpful.
-   - Use clear markdown: bolding, bullet points, headers, formatted code blocks with language identifiers.`;
+   - Never generate hallucinated or fake image URLs. Use the exact real image URL provided in context.
+4. Response Format & Style:
+   - Clean, direct, structured, and fast.
+   - Use rich markdown: bold key points, bullet lists, headers, and formatted code blocks where helpful.`;
+}
 
 // High-speed, high-intelligence models on OpenRouter
 const FAST_MODELS = [
@@ -29,44 +42,93 @@ const FAST_MODELS = [
   'cohere/north-mini-code:free',
 ];
 
-// Helper: Fetch real Wikipedia image & facts in ~200ms
-async function fetchRealWikiData(userQuery) {
-  try {
-    // Extract query terms or cleaned search string
-    let searchQuery = userQuery
-      .replace(/who is|what is|tell me about|show me a picture of|show photo of|picture of|photo of|image of|details of/gi, '')
-      .trim();
+// Real-Time Web & Wikipedia Intelligence Fetcher (< 1.5s in parallel)
+async function fetchRealTimeIntelligence(query) {
+  let webSnippets = [];
+  let wikiResults = [];
+  let imageUrl = null;
+  let imageTitle = null;
 
-    if (!searchQuery || searchQuery.length < 2) {
-      searchQuery = userQuery.trim();
+  // 1. DuckDuckGo Web Search for latest news, present status, and facts
+  const webPromise = (async () => {
+    try {
+      const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+        signal: AbortSignal.timeout(2200),
+      });
+      const html = await res.text();
+      const regex = /<a class="result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/g;
+      let match;
+      while ((match = regex.exec(html)) !== null && webSnippets.length < 4) {
+        const clean = match[1]
+          .replace(/<[^>]+>/g, '')
+          .replace(/&quot;/g, '"')
+          .replace(/&#x27;/g, "'")
+          .replace(/&amp;/g, '&')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (clean && clean.length > 20) {
+          webSnippets.push(clean);
+        }
+      }
+    } catch {
+      // Ignore web search errors gracefully
     }
+  })();
 
-    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(searchQuery)}&utf8=&format=json&origin=*`;
-    const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(2000) });
-    const searchData = await searchRes.json();
-    const results = searchData.query?.search || [];
+  // 2. Wikipedia API for authoritative summaries + official high-resolution photos
+  const wikiPromise = (async () => {
+    try {
+      const cleanQ =
+        query
+          .replace(
+            /who is|what is|tell me about|show me a picture of|show photo of|picture of|photo of|image of|details of|current|present|latest|recent/gi,
+            ''
+          )
+          .trim() || query;
 
-    if (results.length === 0) return null;
+      const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
+        cleanQ
+      )}&utf8=&format=json&origin=*`;
+      const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(2000) });
+      const searchData = await searchRes.json();
+      const results = searchData.query?.search || [];
+      if (!results.length) return;
 
-    const topTitle = results[0].title;
-    const pageUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(topTitle)}&prop=pageimages|extracts&exintro=1&explaintext=1&pithumbsize=1000&format=json&origin=*`;
-    const pageRes = await fetch(pageUrl, { signal: AbortSignal.timeout(2000) });
-    const pageData = await pageRes.json();
-    const pages = pageData.query?.pages || {};
-    const pageId = Object.keys(pages)[0];
-    const page = pages[pageId];
+      const titles = results.slice(0, 2).map((r) => r.title).join('|');
+      const pageUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(
+        titles
+      )}&prop=pageimages|extracts&exintro=1&explaintext=1&pithumbsize=1000&format=json&origin=*`;
+      const pageRes = await fetch(pageUrl, { signal: AbortSignal.timeout(2000) });
+      const pageData = await pageRes.json();
+      const pages = Object.values(pageData.query?.pages || {});
 
-    if (!page || page.invalid !== undefined) return null;
+      for (const p of pages) {
+        if (p.extract) {
+          wikiResults.push({
+            title: p.title,
+            extract: p.extract.slice(0, 450),
+          });
+        }
+        if (!imageUrl && p.thumbnail?.source) {
+          imageUrl = p.thumbnail.source;
+          imageTitle = p.title;
+        }
+      }
+    } catch {
+      // Ignore wiki search errors gracefully
+    }
+  })();
 
-    return {
-      title: page.title || topTitle,
-      extract: page.extract ? page.extract.slice(0, 600) : '',
-      imageUrl: page.thumbnail?.source || null,
-    };
-  } catch (err) {
-    console.warn('[MABIX Wiki Fetch] Warning:', err.message);
-    return null;
-  }
+  await Promise.allSettled([webPromise, wikiPromise]);
+
+  return { webSnippets, wikiResults, imageUrl, imageTitle };
 }
 
 async function callOpenRouterWithTimeout(apiKey, messages, model, timeoutMs = 4000) {
@@ -77,7 +139,7 @@ async function callOpenRouterWithTimeout(apiKey, messages, model, timeoutMs = 40
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://mabix.netlify.app',
         'X-Title': 'MABIX AI Chat',
@@ -86,14 +148,14 @@ async function callOpenRouterWithTimeout(apiKey, messages, model, timeoutMs = 40
         model,
         messages,
         stream: true,
-        temperature: 0.6,
+        temperature: 0.5,
         max_tokens: 4096,
       }),
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
     return response;
-  } catch (err) {
+  } catch {
     clearTimeout(timeoutId);
     return null;
   }
@@ -118,25 +180,31 @@ export async function POST(request) {
 
     const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
 
-    // Fetch real Wikipedia facts & real official photo in parallel (< 250ms)
-    let wikiContext = '';
-    let realImageData = null;
+    // Fetch live web search snippets + Wikipedia facts + real photo
+    let liveContext = '';
+    if (lastUserMsg && lastUserMsg.trim().length > 1) {
+      const intel = await fetchRealTimeIntelligence(lastUserMsg);
 
-    if (lastUserMsg) {
-      realImageData = await fetchRealWikiData(lastUserMsg);
-      if (realImageData) {
-        wikiContext = `\n\n[AUTHORITATIVE REAL-TIME CONTEXT & REAL PHOTO]:
-Subject: ${realImageData.title}
-Key Facts: ${realImageData.extract}
-Real Official Image URL: ${realImageData.imageUrl || 'None'}
+      const parts = [];
+      if (intel.webSnippets.length > 0) {
+        parts.push(`[LIVE WEB SEARCH RESULTS - PRESENT STATUS]:\n${intel.webSnippets.join('\n---\n')}`);
+      }
+      if (intel.wikiResults.length > 0) {
+        const wikiText = intel.wikiResults.map((w) => `• ${w.title}: ${w.extract}`).join('\n');
+        parts.push(`[ENCYCLOPEDIC REFERENCE]:\n${wikiText}`);
+      }
+      if (intel.imageUrl) {
+        parts.push(
+          `[REAL OFFICIAL PHOTO AVAILABLE]:\nTitle: ${intel.imageTitle || 'Photo'}\nImage URL: ${intel.imageUrl}\nINSTRUCTION: Embed this real photo at the very beginning of your answer:\n![${intel.imageTitle || 'Image'}](${intel.imageUrl})`
+        );
+      }
 
-INSTRUCTION: If Real Official Image URL is present, start your response by embedding it:
-![${realImageData.title}](${realImageData.imageUrl})
-Use the facts above to answer accurately!`;
+      if (parts.length > 0) {
+        liveContext = `\n\n=== REAL-TIME GROUND TRUTH INTELLIGENCE ===\n${parts.join('\n\n')}\n===========================================`;
       }
     }
 
-    const fullSystemPrompt = SYSTEM_PROMPT + wikiContext;
+    const fullSystemPrompt = getSystemPrompt() + liveContext;
 
     const openRouterMessages = [
       { role: 'system', content: fullSystemPrompt },
