@@ -51,10 +51,10 @@ export default function Sidebar({
 
         <div className="sidebar-footer">
           <div className="user-profile">
-            <img src="/logo.png" alt="MABIX" className="user-avatar-img" />
+            <img src="/logo.png" alt="Tharun Thangadi" className="user-avatar-img" />
             <div className="profile-info">
-              <span className="user-name">MABIX</span>
-              <span className="user-model-badge">MABIX 1.0 (core)</span>
+              <span className="user-name">Tharun Thangadi</span>
+              <span className="user-model-badge">Creator &bull; MABIX 1.0</span>
             </div>
           </div>
         </div>
