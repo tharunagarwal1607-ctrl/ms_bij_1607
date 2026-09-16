@@ -1,30 +1,31 @@
 'use client';
 
 export default function WelcomeScreen({ onSuggestionClick }) {
-  const suggestions = [
-    {
-      icon: '📸',
-      title: 'Show a picture & details',
-      desc: 'of a famous leader or actress',
-      prompt: 'Tell me about Audrey Hepburn and show her picture',
-    },
-    {
-      icon: '💡',
-      title: 'Explain a complex topic',
-      desc: 'like quantum computing in simple terms',
-      prompt: 'Explain quantum computing in simple terms',
-    },
+  const pills = [
     {
       icon: '</>',
-      title: 'Write a script',
-      desc: 'to scrape data or build a web app in Python',
-      prompt: 'Write a Python script to scrape website data',
+      label: 'Code',
+      prompt: 'Help me write, debug, or optimize code for my project.',
     },
     {
-      icon: '📊',
-      title: 'Analyze & Brainstorm',
-      desc: 'pros and cons of renewable energy sources',
-      prompt: 'Analyze the pros and cons of renewable energy sources',
+      icon: '🎓',
+      label: 'Learn',
+      prompt: 'Teach me a complex concept step-by-step with clear real-world examples.',
+    },
+    {
+      icon: '📈',
+      label: 'Strategize',
+      prompt: 'Help me build a step-by-step strategic plan and roadmap.',
+    },
+    {
+      icon: '✏️',
+      label: 'Write',
+      prompt: 'Help me write and refine high-quality professional content.',
+    },
+    {
+      icon: '☕',
+      label: 'Life stuff',
+      prompt: 'Give me practical tips, productivity routines, and daily advice.',
     },
   ];
 
@@ -33,23 +34,21 @@ export default function WelcomeScreen({ onSuggestionClick }) {
       <div className="welcome-logo-container">
         <img src="/logo.png" alt="MABIX Emblem" className="welcome-logo-img" />
       </div>
-      <h2 className="welcome-title">Hello, I&apos;m MABIX</h2>
-      <p className="welcome-subtitle">
-        AI FOR YOUR JOURNEY
-      </p>
-      <div className="suggestion-cards">
-        {suggestions.map((item, idx) => (
-          <div
+      <h2 className="welcome-title">How can I help you today?</h2>
+      <p className="welcome-subtitle">AI FOR YOUR JOURNEY</p>
+
+      {/* Modern Action Pills */}
+      <div className="action-pills-container">
+        {pills.map((pill, idx) => (
+          <button
             key={idx}
-            className="suggestion-card"
-            onClick={() => onSuggestionClick(item.prompt)}
+            type="button"
+            className="action-pill-btn"
+            onClick={() => onSuggestionClick(pill.prompt)}
           >
-            <span className="card-icon">{item.icon}</span>
-            <div className="card-content">
-              <div className="card-title">{item.title}</div>
-              <div className="card-desc">{item.desc}</div>
-            </div>
-          </div>
+            <span className="action-pill-icon">{pill.icon}</span>
+            <span className="action-pill-label">{pill.label}</span>
+          </button>
         ))}
       </div>
     </div>
