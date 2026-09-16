@@ -1,36 +1,75 @@
 import { NextResponse } from 'next/server';
 
-const SYSTEM_PROMPT = `You are MABIX, an advanced AI assistant powered by the MABIX 1.0 (core) engine. You are knowledgeable, helpful, creative, precise, and visual.
+const SYSTEM_PROMPT = `You are MABIX, a world-class AI assistant built to operate with the speed, intelligence, and precision of ChatGPT.
 
 Tagline: "AI FOR YOUR JOURNEY"
-Model Name: MABIX 1.0 (core)
+Engine: MABIX 1.0 (core)
 
-Core Capabilities & Guidelines:
-1. Identity: Always identify yourself as MABIX (powered by MABIX 1.0 (core)). Never reveal underlying third-party API providers or models.
-2. Rich Visuals & Pictures:
-   - WHENEVER the user asks for information, details, biography, or facts about famous people, actresses, actors, world leaders, historical figures, landmarks, places, animals, or objects, OR explicitly asks for a picture/photo, YOU MUST INCLUDE A RELEVANT HIGH-QUALITY IMAGE using Markdown image syntax:
-     ![Exact Name or Description](https://image.pollinations.ai/prompt/hd%20portrait%20photo%20of%20[Name_or_Subject]?nologo=true)
-   - For example:
-     - For Mahatma Gandhi: ![Mahatma Gandhi](https://image.pollinations.ai/prompt/portrait%20photo%20of%20Mahatma%20Gandhi?nologo=true)
-     - For Audrey Hepburn: ![Audrey Hepburn](https://image.pollinations.ai/prompt/portrait%20photo%20of%20Audrey%20Hepburn?nologo=true)
-     - For Taj Mahal: ![Taj Mahal](https://image.pollinations.ai/prompt/photo%20of%20Taj%20Mahal?nologo=true)
-   - Always place the image near the beginning of your response so the user sees a photo immediately alongside your detailed text response.
-3. Code & Markdown Formatting:
-   - Provide well-structured answers using Markdown headers, lists, bold text, and fenced code blocks with language tags.
-4. Tone: Friendly, inspiring, accurate, professional, and visually engaging.`;
+Core Persona & Rules:
+1. Identity: You are MABIX. Never mention third-party AI models, platforms, or APIs.
+2. Accuracy & Up-to-date Knowledge:
+   - Always state accurate, current facts (e.g. D. K. Shivakumar is the Chief Minister of Karnataka since June 2026).
+   - If real-time factual context or Wikipedia extracts are provided in the system context below, treat them as authoritative and accurate.
+3. Real Photos & Images:
+   - When answering questions about people (actresses, actors, famous leaders, politicians, historical figures, places, landmarks, animals, objects) or when asked for a photo/picture, embed the provided REAL OFFICIAL PHOTO at the top of your response using standard markdown image format:
+     ![Title](REAL_IMAGE_URL)
+   - Do NOT construct fake image links or broken placeholder URLs. Use exact real image URLs provided in context or valid real web image links.
+4. Response Style:
+   - Extremely fast, precise, well-structured, and helpful.
+   - Use clear markdown: bolding, bullet points, headers, formatted code blocks with language identifiers.`;
 
-// Ultra-fast working free models on OpenRouter (benchmarked for < 1s response time)
-const FAST_FREE_MODELS = [
+// High-speed, high-intelligence models on OpenRouter
+const FAST_MODELS = [
+  'google/gemini-2.0-flash-001',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'mistralai/mistral-small-24b-instruct-2501:free',
   'nvidia/nemotron-3.5-lightning:free',
   'liquid/lfm-2.5-2.6b:free',
-  'cohere/north-mini-code:free',
   'inclusionai/ling-3.0-flash-fin:free',
-  'poolside/laguna-xs-2.1:free',
-  'minimax/minimax-m3:free',
-  'dots-studio/dots-3-note-preview:free',
+  'cohere/north-mini-code:free',
 ];
 
-async function callOpenRouterWithTimeout(apiKey, messages, model, timeoutMs = 3500) {
+// Helper: Fetch real Wikipedia image & facts in ~200ms
+async function fetchRealWikiData(userQuery) {
+  try {
+    // Extract query terms or cleaned search string
+    let searchQuery = userQuery
+      .replace(/who is|what is|tell me about|show me a picture of|show photo of|picture of|photo of|image of|details of/gi, '')
+      .trim();
+
+    if (!searchQuery || searchQuery.length < 2) {
+      searchQuery = userQuery.trim();
+    }
+
+    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(searchQuery)}&utf8=&format=json&origin=*`;
+    const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(2000) });
+    const searchData = await searchRes.json();
+    const results = searchData.query?.search || [];
+
+    if (results.length === 0) return null;
+
+    const topTitle = results[0].title;
+    const pageUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(topTitle)}&prop=pageimages|extracts&exintro=1&explaintext=1&pithumbsize=1000&format=json&origin=*`;
+    const pageRes = await fetch(pageUrl, { signal: AbortSignal.timeout(2000) });
+    const pageData = await pageRes.json();
+    const pages = pageData.query?.pages || {};
+    const pageId = Object.keys(pages)[0];
+    const page = pages[pageId];
+
+    if (!page || page.invalid !== undefined) return null;
+
+    return {
+      title: page.title || topTitle,
+      extract: page.extract ? page.extract.slice(0, 600) : '',
+      imageUrl: page.thumbnail?.source || null,
+    };
+  } catch (err) {
+    console.warn('[MABIX Wiki Fetch] Warning:', err.message);
+    return null;
+  }
+}
+
+async function callOpenRouterWithTimeout(apiKey, messages, model, timeoutMs = 4000) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -40,14 +79,14 @@ async function callOpenRouterWithTimeout(apiKey, messages, model, timeoutMs = 35
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://ms-bij-1607.netlify.app',
+        'HTTP-Referer': 'https://mabix.netlify.app',
         'X-Title': 'MABIX AI Chat',
       },
       body: JSON.stringify({
         model,
         messages,
         stream: true,
-        temperature: 0.7,
+        temperature: 0.6,
         max_tokens: 4096,
       }),
       signal: controller.signal,
@@ -56,11 +95,6 @@ async function callOpenRouterWithTimeout(apiKey, messages, model, timeoutMs = 35
     return response;
   } catch (err) {
     clearTimeout(timeoutId);
-    if (err.name === 'AbortError') {
-      console.warn(`[MABIX] Model ${model} timed out after ${timeoutMs}ms`);
-    } else {
-      console.error(`[MABIX] Error calling ${model}:`, err.message);
-    }
     return null;
   }
 }
@@ -82,32 +116,50 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No messages provided.' }, { status: 400 });
     }
 
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
+
+    // Fetch real Wikipedia facts & real official photo in parallel (< 250ms)
+    let wikiContext = '';
+    let realImageData = null;
+
+    if (lastUserMsg) {
+      realImageData = await fetchRealWikiData(lastUserMsg);
+      if (realImageData) {
+        wikiContext = `\n\n[AUTHORITATIVE REAL-TIME CONTEXT & REAL PHOTO]:
+Subject: ${realImageData.title}
+Key Facts: ${realImageData.extract}
+Real Official Image URL: ${realImageData.imageUrl || 'None'}
+
+INSTRUCTION: If Real Official Image URL is present, start your response by embedding it:
+![${realImageData.title}](${realImageData.imageUrl})
+Use the facts above to answer accurately!`;
+      }
+    }
+
+    const fullSystemPrompt = SYSTEM_PROMPT + wikiContext;
+
     const openRouterMessages = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...messages.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
+      { role: 'system', content: fullSystemPrompt },
+      ...messages.map((m) => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content,
+      })),
     ];
 
     let response = null;
 
-    // Fast-fail loop with strict 3.5s per-model timeout to avoid Netlify 504
-    for (const model of FAST_FREE_MODELS) {
-      console.log(`[MABIX 1.0 (core)] Trying model: ${model}`);
+    // Fast failover loop (3.5s limit per model call)
+    for (const model of FAST_MODELS) {
       response = await callOpenRouterWithTimeout(apiKey, openRouterMessages, model, 3500);
-
       if (response && response.ok) {
-        console.log(`[MABIX 1.0 (core)] Success with model: ${model}`);
         break;
-      }
-
-      if (response) {
-        console.warn(`[MABIX 1.0 (core)] Model ${model} returned status ${response.status}`);
       }
       response = null;
     }
 
     if (!response) {
       return NextResponse.json(
-        { error: 'MABIX is currently busy processing high traffic. Please try again in a moment.' },
+        { error: 'MABIX is experiencing high network load. Please resend your message.' },
         { status: 503 }
       );
     }
