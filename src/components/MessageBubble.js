@@ -11,18 +11,17 @@ function renderMarkdown(text) {
 
   let html = text;
 
-  // Process code blocks first so inner characters aren't touched
+  // Process code blocks first
   const codeBlocks = [];
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
     const idx = codeBlocks.length;
     const language = lang || 'code';
-    // Escape HTML in code block
     const escapedCode = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     codeBlocks.push(`<div class="code-block-wrapper"><div class="code-block-header"><span>${language}</span><button class="copy-btn" onclick="navigator.clipboard.writeText(this.closest('.code-block-wrapper').querySelector('code').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)})">Copy</button></div><pre><code>${escapedCode.trim()}</code></pre></div>`);
     return `___CODEBLOCK_${idx}___`;
   });
 
-  // Process inline code next
+  // Process inline code
   const inlineCodes = [];
   html = html.replace(/`([^`]+)`/g, (_, code) => {
     const idx = inlineCodes.length;
@@ -34,8 +33,8 @@ function renderMarkdown(text) {
   // Markdown Images: ![alt](url)
   html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, url) => {
     const cleanUrl = url.trim();
-    const cleanAlt = alt || 'MABIX Image';
-    return `<div class="chat-image-card"><img src="${cleanUrl}" alt="${cleanAlt}" class="chat-response-image" loading="lazy" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80';"/><div class="image-caption">📷 ${cleanAlt}</div></div>`;
+    const cleanAlt = alt || 'Official Photo';
+    return `<div class="chat-image-card"><a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" title="View Full HD Image"><img src="${cleanUrl}" alt="${cleanAlt}" class="chat-response-image" loading="lazy" onerror="this.onerror=null; this.parentElement.parentElement.style.display='none';"/></a><div class="image-caption">🖼️ ${cleanAlt} <span class="image-zoom-hint">(Click to view full photo)</span></div></div>`;
   });
 
   // Markdown Links: [text](url)
