@@ -1,4 +1,4 @@
-# ms_bij_1607 — AI Chatbot
+# MABIX — AI Chatbot
 
 A premium AI chatbot powered by Google Gemini API with a beautiful dark-themed interface.
 
