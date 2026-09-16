@@ -6,6 +6,31 @@ function formatTime(timestamp) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function getFileIcon(name = '') {
+  const ext = name.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'pdf': return '📄';
+    case 'doc':
+    case 'docx': return '📑';
+    case 'csv':
+    case 'xlsx': return '📊';
+    case 'txt': return '📝';
+    case 'json':
+    case 'js':
+    case 'py':
+    case 'html':
+    case 'css': return '💻';
+    default: return '📎';
+  }
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function renderMarkdown(text) {
   if (!text) return '';
 
@@ -17,7 +42,9 @@ function renderMarkdown(text) {
     const idx = codeBlocks.length;
     const language = lang || 'code';
     const escapedCode = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    codeBlocks.push(`<div class="code-block-wrapper"><div class="code-block-header"><span>${language}</span><button class="copy-btn" onclick="navigator.clipboard.writeText(this.closest('.code-block-wrapper').querySelector('code').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)})">Copy</button></div><pre><code>${escapedCode.trim()}</code></pre></div>`);
+    codeBlocks.push(
+      `<div class="code-block-wrapper"><div class="code-block-header"><span>${language}</span><button class="copy-btn" onclick="navigator.clipboard.writeText(this.closest('.code-block-wrapper').querySelector('code').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)})">Copy</button></div><pre><code>${escapedCode.trim()}</code></pre></div>`
+    );
     return `___CODEBLOCK_${idx}___`;
   });
 
@@ -71,13 +98,38 @@ function renderMarkdown(text) {
 
 export default function MessageBubble({ message }) {
   const isUser = message.role === 'user';
+  const attachments = message.attachments || [];
 
   if (isUser) {
     return (
       <div className="message user-message">
-        <div className="message-content">
-          <p>{message.content}</p>
-        </div>
+        {/* Render attached images & files in user bubble */}
+        {attachments.length > 0 && (
+          <div className="user-attachments-grid">
+            {attachments.map((att, idx) => (
+              <div key={idx} className="user-attachment-item">
+                {att.isImage && att.dataUrl ? (
+                  <div className="user-image-preview-wrapper">
+                    <img src={att.dataUrl} alt={att.name || 'Uploaded image'} className="user-bubble-image" />
+                    <span className="user-attachment-label">{att.name}</span>
+                  </div>
+                ) : (
+                  <div className="user-file-pill">
+                    <span className="user-file-pill-icon">{getFileIcon(att.name)}</span>
+                    <span className="user-file-pill-name">{att.name}</span>
+                    <span className="user-file-pill-size">{formatFileSize(att.size)}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {message.content && (
+          <div className="message-content">
+            <p>{message.content}</p>
+          </div>
+        )}
         <div className="message-time">{formatTime(message.timestamp)}</div>
       </div>
     );
