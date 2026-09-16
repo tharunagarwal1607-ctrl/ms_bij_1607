@@ -2,5 +2,6 @@
   command = "npm run build"
   publish = ".next"
 
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
+[build.environment]
+  NETLIFY_USE_BLOBS = "false"
+  DISABLE_NETLIFY_BLOBS = "true"
