@@ -56,16 +56,39 @@ export default function Home() {
     setIsHydrated(true);
   }, []);
 
-  // Save to localStorage on change
+  // Save to localStorage on change (safely handle quota limits)
   useEffect(() => {
     if (!isHydrated) return;
     try {
+      // Create a storage-safe copy (strip huge base64 strings if storage gets too full)
+      const storageChats = chats.map((chat) => ({
+        ...chat,
+        messages: chat.messages.map((m) => {
+          if (m.attachments && m.attachments.length > 0) {
+            return {
+              ...m,
+              attachments: m.attachments.map((a) => ({
+                id: a.id,
+                name: a.name,
+                size: a.size,
+                type: a.type,
+                isImage: a.isImage,
+                // Keep dataUrl only if it's reasonably small
+                dataUrl: a.dataUrl && a.dataUrl.length < 500000 ? a.dataUrl : undefined,
+                textContent: a.textContent && a.textContent.length < 10000 ? a.textContent : undefined,
+              })),
+            };
+          }
+          return m;
+        }),
+      }));
+
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ chats, activeChatId })
+        JSON.stringify({ chats: storageChats, activeChatId })
       );
-    } catch {
-      // Storage full or unavailable
+    } catch (e) {
+      console.warn('localStorage save warning:', e);
     }
   }, [chats, activeChatId, isHydrated]);
 
@@ -102,12 +125,14 @@ export default function Home() {
   );
 
   const sendMessage = useCallback(
-    async (text) => {
-      if (!text.trim() || isLoading || !activeChatId) return;
+    async (text, attachments = []) => {
+      const trimmed = (text || '').trim();
+      if ((!trimmed && attachments.length === 0) || isLoading || !activeChatId) return;
 
       const userMessage = {
         role: 'user',
-        content: text.trim(),
+        content: trimmed,
+        attachments: attachments,
         timestamp: Date.now(),
       };
 
@@ -121,7 +146,8 @@ export default function Home() {
           };
           // Update title from first user message
           if (chat.messages.filter((m) => m.role === 'user').length === 0) {
-            updated.title = text.trim().slice(0, 35) + (text.length > 35 ? '...' : '');
+            const titleSource = trimmed || attachments[0]?.name || 'New Conversation';
+            updated.title = titleSource.slice(0, 35) + (titleSource.length > 35 ? '...' : '');
           }
           return updated;
         })
@@ -138,6 +164,7 @@ export default function Home() {
         ].map((m) => ({
           role: m.role,
           content: m.content,
+          attachments: m.attachments,
         }));
 
         const response = await fetch('/api/chat', {
@@ -188,9 +215,9 @@ export default function Home() {
           buffer = lines.pop() || '';
 
           for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed.startsWith('data: ')) {
-              const jsonStr = trimmed.slice(6);
+            const trimmedLine = line.trim();
+            if (trimmedLine.startsWith('data: ')) {
+              const jsonStr = trimmedLine.slice(6);
               if (jsonStr === '[DONE]') continue;
 
               try {
@@ -241,11 +268,9 @@ export default function Home() {
         }
       } catch (error) {
         console.error('Send message error:', error);
-        // Add error message
         setChats((prev) =>
           prev.map((chat) => {
             if (chat.id !== activeChatId) return chat;
-            // Remove the empty bot message if it exists, or update it
             const msgs = [...chat.messages];
             const lastIdx = msgs.length - 1;
             if (
