@@ -10,32 +10,40 @@ function getSystemPrompt() {
   });
   const currentYear = now.getFullYear();
 
-  return `You are MABIX, an ultra-intelligent, lightning-fast AI assistant created to operate with the capability, speed, and real-time knowledge of modern state-of-the-art AI.
+  return `You are MABIX, an ultra-intelligent, lightning-fast multimodal AI assistant built to operate with the power, speed, visual understanding, and real-time knowledge of modern state-of-the-art AI.
 
 Tagline: "AI FOR YOUR JOURNEY"
 Engine: MABIX 1.0 (core)
-Temporal Anchor: Today's current date is ${dateStr}. The current year is ${currentYear}.
+Temporal Anchor: Today's date is ${dateStr}. Current year is ${currentYear}.
 
-Core Persona & Rules:
+Core Capabilities & Guidelines:
 1. Identity: You are MABIX. Never mention third-party AI models, platforms, or APIs.
-2. Present & Real-Time Knowledge:
-   - Always prioritize CURRENT / PRESENT information as of ${currentYear}.
-   - If asked about current leaders, ministers, presidents, awards, sports champions, latest movies, releases, or events, always provide the present, up-to-date answer.
+2. Multimodal & Vision Understanding:
+   - When the user uploads an image (diagram, code screenshot, architecture flowchart, chart, photo, handwritten note, exam question paper, math formula, object, UI mockup, or document scan), analyze it with deep precision and detail.
+   - If asked "Explain this diagram", break down the components, flow, data structures, and concepts step-by-step.
+   - If asked "What is wrong with this code?", identify the exact bugs, syntax errors, logic flaws, and provide the corrected code with explanation.
+   - If asked "Read this question paper" or to solve problems from an image, extract questions accurately and provide thorough, step-by-step solutions and answers.
+3. Document Understanding (PDF, DOCX, TXT, CSV, Code):
+   - When documents or data files are attached, analyze their text content thoroughly.
+   - Summarize, answer questions, extract data points, analyze CSV tabular data, explain contracts, review code files, and solve questions from attached documents.
+4. Present & Real-Time Knowledge:
+   - Always prioritize CURRENT / PRESENT facts as of ${currentYear}.
    - When real-time web search or Wikipedia context is provided below, treat it as authoritative, factual truth.
-3. Real Photos & Images:
-   - When answering questions about people (actresses, actors, politicians, leaders, scientists, historical figures, places, landmarks, animals, objects) or when asked for a photo/picture, embed the provided REAL OFFICIAL PHOTO at the top of your response using markdown:
+5. Real Photos & Images:
+   - When answering questions about people (actresses, actors, politicians, leaders, scientists, places, landmarks) or when asked for photos, embed the provided REAL OFFICIAL PHOTO at the top of your response:
      ![Title](REAL_IMAGE_URL)
-   - Never generate hallucinated or fake image URLs. Use the exact real image URL provided in context.
-4. Response Format & Style:
-   - Clean, direct, structured, and fast.
-   - Use rich markdown: bold key points, bullet lists, headers, and formatted code blocks where helpful.`;
+6. Response Style:
+   - Extremely fast, precise, well-structured, and helpful.
+   - Use rich markdown: bolding, bullet points, headers, tables, and formatted code blocks with syntax highlighting.`;
 }
 
-// High-speed, high-intelligence models on OpenRouter
+// Multimodal and High-Speed models on OpenRouter
 const FAST_MODELS = [
   'google/gemini-2.0-flash-001',
-  'meta-llama/llama-3.3-70b-instruct:free',
+  'meta-llama/llama-3.2-11b-vision-instruct:free',
+  'google/gemini-2.0-flash-exp:free',
   'mistralai/mistral-small-24b-instruct-2501:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
   'nvidia/nemotron-3.5-lightning:free',
   'liquid/lfm-2.5-2.6b:free',
   'inclusionai/ling-3.0-flash-fin:free',
@@ -131,7 +139,7 @@ async function fetchRealTimeIntelligence(query) {
   return { webSnippets, wikiResults, imageUrl, imageTitle };
 }
 
-async function callOpenRouterWithTimeout(apiKey, messages, model, timeoutMs = 4000) {
+async function callOpenRouterWithTimeout(apiKey, messages, model, timeoutMs = 4500) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -178,12 +186,24 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No messages provided.' }, { status: 400 });
     }
 
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content || '';
+    const lastUserMsgObj = [...messages].reverse().find((m) => m.role === 'user');
+    const lastUserText =
+      typeof lastUserMsgObj?.content === 'string'
+        ? lastUserMsgObj.content
+        : Array.isArray(lastUserMsgObj?.content)
+        ? lastUserMsgObj.content.find((c) => c.type === 'text')?.text || ''
+        : '';
 
-    // Fetch live web search snippets + Wikipedia facts + real photo
+    // Fetch live web search snippets + Wikipedia facts + real photo if text query is present
     let liveContext = '';
-    if (lastUserMsg && lastUserMsg.trim().length > 1) {
-      const intel = await fetchRealTimeIntelligence(lastUserMsg);
+    const hasAttachments = Boolean(
+      lastUserMsgObj?.attachments?.length ||
+        (Array.isArray(lastUserMsgObj?.content) &&
+          lastUserMsgObj.content.some((c) => c.type === 'image_url'))
+    );
+
+    if (lastUserText && lastUserText.trim().length > 2 && !hasAttachments) {
+      const intel = await fetchRealTimeIntelligence(lastUserText);
 
       const parts = [];
       if (intel.webSnippets.length > 0) {
@@ -206,19 +226,58 @@ export async function POST(request) {
 
     const fullSystemPrompt = getSystemPrompt() + liveContext;
 
+    // Convert client messages to OpenAI / OpenRouter Multimodal format
     const openRouterMessages = [
       { role: 'system', content: fullSystemPrompt },
-      ...messages.map((m) => ({
-        role: m.role === 'assistant' ? 'assistant' : 'user',
-        content: m.content,
-      })),
+      ...messages.map((m) => {
+        const role = m.role === 'assistant' ? 'assistant' : 'user';
+
+        // Check if message has attached images or text documents
+        const attachments = m.attachments || [];
+        const imageAttachments = attachments.filter((a) => a.isImage && a.dataUrl);
+        const docAttachments = attachments.filter((a) => !a.isImage && a.textContent);
+
+        let userText = typeof m.content === 'string' ? m.content : '';
+
+        // Append document contents to the user text prompt
+        if (docAttachments.length > 0) {
+          const docSection = docAttachments
+            .map(
+              (doc) =>
+                `\n\n--- [ATTACHED FILE: ${doc.name} (${doc.type || 'document'})] ---\n${doc.textContent}\n--- [END OF ${doc.name}] ---`
+            )
+            .join('\n');
+          userText = (userText ? userText + '\n' : '') + docSection;
+        }
+
+        // If message has images, use Multimodal Content Array format
+        if (imageAttachments.length > 0) {
+          const contentArray = [
+            { type: 'text', text: userText || 'Please analyze this attached image in detail.' },
+            ...imageAttachments.map((img) => ({
+              type: 'image_url',
+              image_url: {
+                url: img.dataUrl,
+              },
+            })),
+          ];
+          return { role, content: contentArray };
+        }
+
+        // If already in array content format
+        if (Array.isArray(m.content)) {
+          return { role, content: m.content };
+        }
+
+        return { role, content: userText || m.content || '' };
+      }),
     ];
 
     let response = null;
 
-    // Fast failover loop (3.5s limit per model call)
+    // Fast failover loop (4s limit per model call)
     for (const model of FAST_MODELS) {
-      response = await callOpenRouterWithTimeout(apiKey, openRouterMessages, model, 3500);
+      response = await callOpenRouterWithTimeout(apiKey, openRouterMessages, model, 4000);
       if (response && response.ok) {
         break;
       }
